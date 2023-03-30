@@ -1,74 +1,97 @@
 import os
-import PyPDF2
+import fitz
 from tkinter import *
 from tkinter import filedialog
-from tkinter import ttk
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
+def get_pdf_content(pdf_path):
+    with fitz.open(pdf_path) as pdf:
+        content = ""
+        for page in pdf:
+            content += page.get_text("text")
+        return content.lower()
 
-def extract_text(folder_path):
-    pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
-    corpus = []
-    filenames = []
-    for pdf_file in pdf_files:
-        pdf_file_path = os.path.join(folder_path, pdf_file)
-        with open(pdf_file_path, 'rb') as f:
-            reader = PyPDF2.PdfFileReader(f)
-            text = ''
-            for page in reader.pages:
-                text += page.extractText()
-            corpus.append(text)
-            filenames.append(pdf_file)
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(corpus)
-    feature_names = vectorizer.get_feature_names()
-    return tfidf_matrix, feature_names, filenames
+def get_pdf_files(directory):
+    pdf_files = []
+    for filename in os.listdir(directory):
+        if filename.endswith('.pdf'):
+            pdf_files.append(os.path.join(directory, filename))
+    return pdf_files
 
-
-def select_folder_path():
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        global tfidf_matrix, feature_names, filenames, vectorizer
-        tfidf_matrix, feature_names, filenames = extract_text(folder_path)
-        vectorizer = TfidfVectorizer()
-
-
-def search():
-    query = search_entry.get()
-    query_tokens = query.lower().split()
-    query_vector = vectorizer.transform([' '.join(query_tokens)])
-    similarity_scores = cosine_similarity(tfidf_matrix, query_vector)
+def search_query(query, documents, file_names):
+    tfidf_vectorizer = TfidfVectorizer()
+    tfidf_matrix = tfidf_vectorizer.fit_transform(documents)
+    query_words = query.split()
+    query_tfidf = tfidf_vectorizer.transform([query])
+    scores = (query_tfidf * tfidf_matrix.T).A[0]
     results = []
-    for i, score in enumerate(similarity_scores):
-        if score > 0:
-            results.append((filenames[i], score[0]))
-    results.sort(key=lambda x: x[1], reverse=True)
-    search_listbox.delete(0, END)
-    for result in results:
-        search_listbox.insert(END, result[0])
+    for i, score in enumerate(scores):
+        if score > 0 and all(word.lower() in documents[i].lower() for word in query_words):
+            results.append((file_names[i], score))
+    return results
 
+def browse_directory():
+    global directory_entry
+    directory = filedialog.askdirectory()
+    directory_entry.delete(0, END)
+    directory_entry.insert(0, directory)
+
+def search_files():
+    query = query_entry.get()
+    directory = directory_entry.get()
+    pdf_files = get_pdf_files(directory)
+    pdf_contents = [get_pdf_content(pdf_file) for pdf_file in pdf_files]
+    results = search_query(query, pdf_contents, pdf_files)
+    result_listbox.delete(0, END)
+    if len(results) > 0:
+        sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
+        for pdf_file, score in sorted_results:
+            result_listbox.insert(END, os.path.basename(pdf_file))
+    else:
+        result_listbox.insert(END, 'No results found')
+
+def open_file(event):
+    widget = event.widget
+    selection = widget.curselection()
+    if selection:
+        index = selection[0]
+        pdf_file = result_listbox.get(index)
+        os.startfile(pdf_file)
 
 root = Tk()
-root.title("PDF Text Search")
-root.geometry("600x500")
+root.title('FileRaze')
+root.geometry('550x580')
+root.configure(bg='#212121')
+root.iconbitmap('icon.ico')
 
-select_folder_label = Label(root, text="Select PDF Folder")
-select_folder_label.pack(pady=(20, 10))
+logo = PhotoImage(file="logo.png")
+logo_label = Label(root, image=logo, bg="#1f1f1f")
+logo_label.grid(row=0, column=1, padx=10, pady=10)
 
-select_folder_button = Button(root, text="Select", command=select_folder_path)
-select_folder_button.pack()
+directory_label = Label(root, text='Select folder :', bg='#212121', fg='white')
+directory_label.grid(row=1, column=0, padx=40, pady=20)
+directory_entry = Entry(root,width= 40)
+directory_entry.grid(row=1, column=1, padx=10, pady=10)
 
-search_label = Label(root, text="Enter Search Query")
-search_label.pack(pady=(20, 10))
+browse_button = Button(root, text='Browse', command=browse_directory, bg='#616161', fg='white')
+browse_button.grid(row=1, column=2, padx=10, pady=10)
 
-search_entry = Entry(root)
-search_entry.pack()
+query_label = Label(root, text='Enter words :', bg='#212121', fg='white')
+query_label.grid(row=2, column=0, padx=10, pady=10)
+query_entry = Entry(root,width= 40)
+query_entry.grid(row=2, column=1, padx=10, pady=10)
 
-search_button = Button(root, text="Search", command=search)
-search_button.pack(pady=(10, 20))
 
-search_listbox = Listbox(root, height=20, width=80)
-search_listbox.pack()
+search_button = Button(root, text='Search', command=search_files, bg='#03a9f4', fg='white',width= 20,height=2)
+search_button.grid(row=3, column=1, padx=10, pady=10)
+
+result_label = Label(root, text='Results:', bg='#212121', fg='white')
+result_label.grid(row=4, column=1, padx=10, pady=10)
+result_listbox = Listbox(root, bg='#424242', fg='white',width= 40,height=11)
+result_listbox.grid(row=5, column=1, padx=10, pady=10)
+result_listbox.bind('<Double-Button-1>', open_file)
+
+kiraieee = Label(root, text='by Ben Fekih Akram', bg='#212121', fg='#dddddd')
+kiraieee.grid(row=6, column=2, padx=2, pady=10)
 
 root.mainloop()
