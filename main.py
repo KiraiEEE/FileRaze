@@ -91,7 +91,7 @@ result_listbox = Listbox(root, bg='#424242', fg='white',width= 40,height=11)
 result_listbox.grid(row=5, column=1, padx=10, pady=10)
 result_listbox.bind('<Double-Button-1>', open_file)
 
-kiraieee = Label(root, text='by Ben Fekih Akram', bg='#212121', fg='#dddddd')
+kiraieee = Label(root, text='KiraiEEE', bg='#212121', fg='#dddddd')
 kiraieee.grid(row=6, column=2, padx=2, pady=10)
 
 root.mainloop()
