@@ -1,2 +1,2 @@
 # FileRaze
-just a test of abilities not a homework :--------)
+![alt text](https://github.com/KiraiEEE/FileRaze/blob/main/preview.png?raw=true)
